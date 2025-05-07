@@ -1,29 +1,28 @@
 import React from 'react';
 import {
-  Text,
-  View,
-  StyleSheet,
-  ScrollView,
   Button,
   PermissionsAndroid,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import {
-  isBluetoothEnabled,
   enabledBluetooth,
-  // requestBluetoothPermission,
-  // enableBluetooth,
-  // disableBluetooth,
+  isBluetoothEnabled,
+  typedBluetoothListener,
+  type BluetoothStateChanged,
 } from 'rn-serial-bluetooth-classic';
-
-// const result = multiply(3, 7);
 
 interface BluetoothInfo {
   isEnabled: boolean;
+  changedState?: BluetoothStateChanged['state'];
 }
 
 export default function App() {
-  const [bluetoothInfo, setBluetoothInfo] =
-    React.useState<BluetoothInfo | null>(null);
+  const [bluetoothInfo, setBluetoothInfo] = React.useState<BluetoothInfo>({
+    isEnabled: false,
+  });
 
   const requestBluetoothPermission = async () => {
     const granted = await PermissionsAndroid.requestMultiple([
@@ -40,9 +39,10 @@ export default function App() {
   const checkBluetoothEnabled = async () => {
     try {
       const response = await isBluetoothEnabled();
-      setBluetoothInfo({
+      setBluetoothInfo((prev) => ({
+        ...(prev ?? {}),
         isEnabled: response.success,
-      });
+      }));
     } catch (error) {
       console.error('checkBluetoothEnabled::error::', error);
     }
@@ -51,9 +51,10 @@ export default function App() {
   const onEnableBluetooth = async () => {
     try {
       const response = await enabledBluetooth();
-      setBluetoothInfo({
+      setBluetoothInfo((prev) => ({
+        ...(prev ?? {}),
         isEnabled: response.success,
-      });
+      }));
       console.log('Enable Bluetooth:', response);
     } catch (error) {
       console.error('Error enabling Bluetooth:', error);
@@ -63,6 +64,23 @@ export default function App() {
   React.useEffect(() => {
     requestBluetoothPermission();
     checkBluetoothEnabled();
+
+    return () => {};
+  }, []);
+
+  React.useEffect(() => {
+    const sb = typedBluetoothListener('BluetoothStateChanged', (event) => {
+      console.log('BluetoothStateChanged::event::', event.state);
+
+      setBluetoothInfo((prev) => ({
+        isEnabled: event.state === 'STATE_ON',
+        changedState: event.state,
+      }));
+    });
+
+    return () => {
+      sb.remove();
+    };
   }, []);
 
   return (
@@ -72,8 +90,11 @@ export default function App() {
       </View>
       <ScrollView>
         <Text>
-          Has bluetooth enabled {bluetoothInfo?.isEnabled ? 'Yes' : 'No'}
+          Has bluetooth enabled: {bluetoothInfo.isEnabled ? 'Yes' : 'No'}
         </Text>
+        {bluetoothInfo.changedState && (
+          <Text>Last state change: {bluetoothInfo.changedState}</Text>
+        )}
       </ScrollView>
     </View>
   );

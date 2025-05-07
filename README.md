@@ -26,17 +26,17 @@ An example implementation can be found in the `example/App.tsx` file:
 
 ## ✅ Features
 
-| Feature                     | Android | iOS |
-| --------------------------- | :-----: | :-: |
-| Bluetooth status connection |    ✅    |  ❌  |
-| Enable Bluetooth            |    ✅    |  ❌  |
+| Feature                               | Android | iOS |
+| ---------------------------           | :-----: | :-: |
+| Bluetooth status connection           |    ✅    |  ❌  |
+| Enable Bluetooth                      |    ✅    |  ❌  |
+| Implement state changed listener      |    ✅    |  ❌  |
 
 ---
 
 ## 🛠️ Roadmap
 
 * Add iOS support
-* Implement Bluetooth state listener
 * Add Bluetooth device pairing
 * Implement Bluetooth device connection
 * Add Bluetooth device disconnection
