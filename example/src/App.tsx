@@ -14,12 +14,15 @@ import {
   typedBluetoothListener,
   type BluetoothStateChanged,
   type BluetoothDevice,
+  startDiscovery,
 } from 'rn-serial-bluetooth-classic';
 
 interface BluetoothInfo {
   isEnabled: boolean;
   changedState?: BluetoothStateChanged['state'];
   bondedDevices?: BluetoothDevice[];
+  discoveryDevices?: BluetoothDevice[];
+  discoveryFinished?: boolean;
 }
 
 export default function App() {
@@ -93,6 +96,15 @@ export default function App() {
     }
   };
 
+  const onStartDiscovery = async () => {
+    try {
+      await startDiscovery();
+      console.log('Discovery started');
+    } catch (error) {
+      console.error('Error starting discovery:', error);
+    }
+  };
+
   React.useEffect(() => {
     requestBluetoothPermission();
     checkBluetoothEnabled();
@@ -116,12 +128,41 @@ export default function App() {
     };
   }, []);
 
+  React.useEffect(() => {
+    const sb = typedBluetoothListener('OnDiscoveryDevice', (event) => {
+      console.log('BluetoothStateChanged::event::', event.address);
+      setBluetoothInfo((prev) => ({
+        ...(prev ?? {}),
+        discoveryDevices: [
+          ...(prev?.discoveryDevices ?? []),
+          {
+            ...event,
+          },
+        ],
+      }));
+    });
+
+    const sbFinished = typedBluetoothListener('OnDiscoveryFinished', () => {
+      setBluetoothInfo((prev) => ({
+        ...(prev ?? {}),
+        discoveryFinished: true,
+      }));
+    });
+
+    return () => {
+      sb.remove();
+      sbFinished.remove();
+    };
+  }, []);
+
   return (
     <View style={styles.container}>
       <View style={styles.buttons}>
         <Button title="Enable Bluetooth" onPress={onEnableBluetooth} />
         <View style={styles.divider} />
         <Button title="Get bonded devices" onPress={onGetBondedDevices} />
+        <View style={styles.divider} />
+        <Button title="Start discovery" onPress={onStartDiscovery} />
       </View>
       <ScrollView>
         <View style={styles.divider} />
@@ -143,6 +184,18 @@ export default function App() {
               </Text>
             )
           : null}
+
+        {bluetoothInfo.discoveryDevices &&
+          bluetoothInfo.discoveryDevices.length > 0 && (
+            <Text>
+              Discovery Devices:{' '}
+              {bluetoothInfo.discoveryDevices
+                .map((device) => device.name)
+                .join(', ')}
+            </Text>
+          )}
+
+        {bluetoothInfo.discoveryFinished && <Text>Discovery finished</Text>}
       </ScrollView>
     </View>
   );
