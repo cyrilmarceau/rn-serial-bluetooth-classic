@@ -9,19 +9,23 @@ import {
 } from 'react-native';
 import {
   enabledBluetooth,
+  getBondedDevices,
   isBluetoothEnabled,
   typedBluetoothListener,
   type BluetoothStateChanged,
+  type BluetoothDevice,
 } from 'rn-serial-bluetooth-classic';
 
 interface BluetoothInfo {
   isEnabled: boolean;
   changedState?: BluetoothStateChanged['state'];
+  bondedDevices?: BluetoothDevice[];
 }
 
 export default function App() {
   const [bluetoothInfo, setBluetoothInfo] = React.useState<BluetoothInfo>({
     isEnabled: false,
+    bondedDevices: [],
   });
 
   const requestBluetoothPermission = async () => {
@@ -36,12 +40,27 @@ export default function App() {
     );
   };
 
+  const requestLocationPermission = async () => {
+    const granted = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+      {
+        title: 'Location Permission',
+        message: 'Location permission is required to use Bluetooth.',
+        buttonNeutral: 'Ask Me Later',
+        buttonNegative: 'Cancel',
+        buttonPositive: 'OK',
+      }
+    );
+
+    return granted === PermissionsAndroid.RESULTS.GRANTED;
+  };
+
   const checkBluetoothEnabled = async () => {
     try {
-      const response = await isBluetoothEnabled();
+      const isEnabled = await isBluetoothEnabled();
       setBluetoothInfo((prev) => ({
         ...(prev ?? {}),
-        isEnabled: response.success,
+        isEnabled: isEnabled,
       }));
     } catch (error) {
       console.error('checkBluetoothEnabled::error::', error);
@@ -53,7 +72,7 @@ export default function App() {
       const response = await enabledBluetooth();
       setBluetoothInfo((prev) => ({
         ...(prev ?? {}),
-        isEnabled: response.success,
+        isEnabled: response,
       }));
       console.log('Enable Bluetooth:', response);
     } catch (error) {
@@ -61,9 +80,23 @@ export default function App() {
     }
   };
 
+  const onGetBondedDevices = async () => {
+    try {
+      const devices = await getBondedDevices();
+      setBluetoothInfo((prev) => ({
+        ...(prev ?? {}),
+        bondedDevices: devices,
+      }));
+      console.log('onGetBondedDevices :: ', devices);
+    } catch (error) {
+      console.error('Error getting bonded devices:', error);
+    }
+  };
+
   React.useEffect(() => {
     requestBluetoothPermission();
     checkBluetoothEnabled();
+    requestLocationPermission();
 
     return () => {};
   }, []);
@@ -87,14 +120,29 @@ export default function App() {
     <View style={styles.container}>
       <View style={styles.buttons}>
         <Button title="Enable Bluetooth" onPress={onEnableBluetooth} />
+        <View style={styles.divider} />
+        <Button title="Get bonded devices" onPress={onGetBondedDevices} />
       </View>
       <ScrollView>
+        <View style={styles.divider} />
         <Text>
           Has bluetooth enabled: {bluetoothInfo.isEnabled ? 'Yes' : 'No'}
         </Text>
         {bluetoothInfo.changedState && (
           <Text>Last state change: {bluetoothInfo.changedState}</Text>
         )}
+        <View style={styles.divider} />
+
+        {bluetoothInfo.bondedDevices
+          ? bluetoothInfo.bondedDevices.length > 0 && (
+              <Text>
+                Bonded Devices:{' '}
+                {bluetoothInfo.bondedDevices
+                  .map((device) => device.name)
+                  .join(', ')}
+              </Text>
+            )
+          : null}
       </ScrollView>
     </View>
   );
@@ -108,5 +156,10 @@ const styles = StyleSheet.create({
   },
   buttons: {
     width: '100%',
+  },
+  divider: {
+    width: '100%',
+    backgroundColor: '#000',
+    marginVertical: 5,
   },
 });

@@ -3,9 +3,11 @@ package com.rnserialbluetoothclassic
 import android.Manifest
 import android.app.Activity
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresPermission
 import com.facebook.react.bridge.Arguments
@@ -15,10 +17,11 @@ import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.module.annotations.ReactModule
 import com.facebook.react.modules.core.DeviceEventManagerModule
-import com.rnserialbluetoothclassic.domain.BluetoothResponse
 import com.rnserialbluetoothclassic.domain.EventNames
+import com.rnserialbluetoothclassic.exception.BluetoothException
 import com.rnserialbluetoothclassic.receivers.ActionStateChangedReceiver
 import com.rnserialbluetoothclassic.utils.resolveBluetoothPromise
+
 
 @ReactModule(name = RnSerialBluetoothClassicModule.NAME)
 class RnSerialBluetoothClassicModule(reactContext: ReactApplicationContext) :
@@ -59,9 +62,7 @@ class RnSerialBluetoothClassicModule(reactContext: ReactApplicationContext) :
 
   override fun onHostResume() {}
   override fun onHostPause() {}
-  override fun onHostDestroy() {
-//    unregisterBluetoothActionStateChangedEventListener()
-  }
+  override fun onHostDestroy() {}
 
   // Example method
   // See https://reactnative.dev/docs/native-modules-android
@@ -70,23 +71,13 @@ class RnSerialBluetoothClassicModule(reactContext: ReactApplicationContext) :
   }
 
   override fun isBluetoothEnabled(promise: Promise) {
-
     val adapter = bluetoothAdapter
 
     if (adapter == null) {
-      val response = BluetoothResponse(
-        success = false,
-        message = "Bluetooth not available on this device"
-      )
-      return promise.resolve(response.toWriteableMap())
+      return BluetoothException.ADAPTER_NULL_ERROR.reject(promise)
     }
 
-    val enabled = adapter.isEnabled
-    val response = BluetoothResponse(
-      success = enabled,
-      message = if (enabled) "Bluetooth enabled" else "Bluetooth desabled",
-    )
-    promise.resolve(response.toWriteableMap())
+    return promise.resolve(adapter.isEnabled)
   }
 
   @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
@@ -94,28 +85,17 @@ class RnSerialBluetoothClassicModule(reactContext: ReactApplicationContext) :
     val adapter = bluetoothAdapter
 
     if (adapter == null) {
-      return resolveBluetoothPromise(
-        promise,
-        success = false,
-        message = "Bluetooth not available on this device"
-      )
+      return BluetoothException.ADAPTER_NULL_ERROR.reject(promise)
     }
 
     if (adapter.isEnabled) {
-      return resolveBluetoothPromise(
-        promise,
-        success = true,
-        message = "Bluetooth is already enabled"
-      )
+      return promise.resolve(adapter.isEnabled)
     }
 
     val activity = reactApplicationContext.currentActivity
     if (activity == null) {
-      return resolveBluetoothPromise(
-        promise,
-        success = false,
-        message = "Unable to access the current activity"
-      )
+      BluetoothException.ACTIVITY_ACCESS_ERROR.reject(promise)
+      return
     }
 
     try {
@@ -129,14 +109,62 @@ class RnSerialBluetoothClassicModule(reactContext: ReactApplicationContext) :
 
       activity.startActivityForResult(enableIntent, BLUETOOTH_ENABLED_REQUEST)
     } catch (e: Exception) {
-      return resolveBluetoothPromise(
-        promise,
-        success = false,
-        message = "Error while requesting Bluetooth activation: ${e.message}"
-      )
+      promise.reject("BLUETOOTH_ERROR", "Error while requesting Bluetooth activation: ${e.message}")
+      return
     }
+  }
+
+
+  @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+  override fun getBondedDevices(promise: Promise) {
+    val adapter = bluetoothAdapter
+
+    if (adapter == null) {
+      return BluetoothException.ADAPTER_NULL_ERROR.reject(promise)
     }
 
+    if (!adapter.isEnabled) {
+      return BluetoothException.BLUETOOTH_DISABLED_ERROR.reject(promise)
+    }
+
+    try {
+      val pairedDevices: Set<BluetoothDevice>? = adapter.bondedDevices
+      val bondedDevices = Arguments.createArray()
+
+      pairedDevices?.forEach { device ->
+        val dMap = Arguments.createMap()
+        dMap.putString("name", device.name)
+        dMap.putString("address", device.address)
+        dMap.putBoolean("isBonded", device.bondState == BluetoothDevice.BOND_BONDED)
+
+        dMap.putString("alias", device.let { it ->
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            it.alias
+          } else null
+        })
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+          dMap.putInt("addressType", device.addressType)
+        } else {
+          dMap.putInt("addressType", -1)
+        }
+
+        device.bluetoothClass.let {
+          val bluetoothClass = Arguments.createMap()
+          bluetoothClass.putInt("majorDeviceClass", it.majorDeviceClass)
+          bluetoothClass.putInt("deviceClass", it.deviceClass)
+          dMap.putMap("bluetoothClass", bluetoothClass)
+        }
+        dMap.putInt("type", device.type)
+
+        bondedDevices.pushMap(dMap)
+      }
+
+      promise.resolve(bondedDevices)
+    } catch (e: Exception) {
+      promise.reject("BLUETOOTH_ERROR", "Error getting bonded devices: ${e.message}", e)
+    }
+  }
 
   override fun onBluetoothStateChanged(state: Int) {
     sendBluetoothStateEvent(state)
@@ -172,13 +200,10 @@ class RnSerialBluetoothClassicModule(reactContext: ReactApplicationContext) :
     listenerCount += 1
   }
 
-
-  override fun removeListeners() {
+  override fun removeListeners(count: Double) {
     listenerCount -= 1
     unregisterBluetoothActionStateChangedEventListener()
   }
-
-
 
   private fun registerBluetoothActivityEventListener() {
     val listener = object : BaseActivityEventListener() {
@@ -197,7 +222,7 @@ class RnSerialBluetoothClassicModule(reactContext: ReactApplicationContext) :
             else -> false to "Unexpected result code"
           }
 
-          resolveBluetoothPromise(promise, success, message)
+          promise.resolve(success)
           bluetoothPromise = null
         }
       }
