@@ -72,7 +72,7 @@ export default function App() {
     const sb = typedBluetoothListener('BluetoothStateChanged', (event) => {
       console.log('BluetoothStateChanged::event::', event.state);
 
-      setBluetoothInfo((prev) => ({
+      setBluetoothInfo(() => ({
         isEnabled: event.state === 'STATE_ON',
         changedState: event.state,
       }));
