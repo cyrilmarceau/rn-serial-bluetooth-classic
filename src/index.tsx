@@ -12,6 +12,8 @@ export type BluetoothStateChanged = {
 };
 export type BluetoothEventPayloads = {
   [BluetoothListeners.BLUETOOTH_STATE_CHANGED]: BluetoothStateChanged;
+  [BluetoothListeners.ON_DISCOVERY_DEVICE]: BluetoothDevice;
+  [BluetoothListeners.ON_DISCOVERY_FINISHED]: void;
 };
 
 export const bluetoothListener = new NativeEventEmitter(
@@ -39,4 +41,8 @@ export function typedBluetoothListener<K extends keyof BluetoothEventPayloads>(
 
 export async function getBondedDevices(): Promise<BluetoothDevice[]> {
   return await RnSerialBluetoothClassic.getBondedDevices();
+}
+
+export async function startDiscovery(): Promise<void> {
+  return await RnSerialBluetoothClassic.startDiscovery();
 }

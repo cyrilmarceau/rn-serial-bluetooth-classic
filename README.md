@@ -31,6 +31,9 @@ An example implementation can be found in the `example/App.tsx` file:
 | Bluetooth status connection           |    ✅    |  ❌  |
 | Enable Bluetooth                      |    ✅    |  ❌  |
 | Implement state changed listener      |    ✅    |  ❌  |
+| Discover device incrementally         |    ✅    |  ❌  |
+| Listener when discover end            |    ✅    |  ❌  |
+| Listener when discover end            |    ✅    |  ❌  |
 
 ---
 

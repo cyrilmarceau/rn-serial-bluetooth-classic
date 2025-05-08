@@ -55,6 +55,8 @@ export interface BluetoothDevice {
 
 export const BluetoothListeners = {
   BLUETOOTH_STATE_CHANGED: 'BluetoothStateChanged',
+  ON_DISCOVERY_DEVICE: 'OnDiscoveryDevice',
+  ON_DISCOVERY_FINISHED: 'OnDiscoveryFinished',
 } as const;
 
 export type BluetoothListener =
@@ -70,6 +72,8 @@ export interface Spec extends TurboModule {
   removeListeners(count: number): void;
 
   getBondedDevices(): Promise<BluetoothDevice[]>;
+
+  startDiscovery(): Promise<void>;
 }
 
 export default TurboModuleRegistry.getEnforcing<Spec>(
