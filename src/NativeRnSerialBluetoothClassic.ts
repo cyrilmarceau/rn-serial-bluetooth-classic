@@ -57,6 +57,7 @@ export const BluetoothListeners = {
   BLUETOOTH_STATE_CHANGED: 'BluetoothStateChanged',
   ON_DISCOVERY_DEVICE: 'OnDiscoveryDevice',
   ON_DISCOVERY_FINISHED: 'OnDiscoveryFinished',
+  ON_BONDED_DEVICE: 'OnBondedDevice',
 } as const;
 
 export type BluetoothListener =
@@ -74,6 +75,14 @@ export interface Spec extends TurboModule {
   getBondedDevices(): Promise<BluetoothDevice[]>;
 
   startDiscovery(): Promise<void>;
+
+  /**
+   *
+   * @param address The address of the device to pair with.
+   * Subscribe to the `BluetoothListeners.ON_BONDED_DEVICE` event to get the result of the pairing.
+   * @returns A promise that resolves when the pairing is complete.
+   */
+  pairDevice(address: string): Promise<void>;
 }
 
 export default TurboModuleRegistry.getEnforcing<Spec>(

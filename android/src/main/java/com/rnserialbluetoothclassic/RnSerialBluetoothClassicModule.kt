@@ -22,6 +22,7 @@ import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.rnserialbluetoothclassic.domain.EventNames
 import com.rnserialbluetoothclassic.exception.BluetoothException
 import com.rnserialbluetoothclassic.receivers.ActionStateChangedReceiver
+import com.rnserialbluetoothclassic.receivers.BondStateChangedReceiver
 import com.rnserialbluetoothclassic.receivers.DiscoveryReceiver
 import com.rnserialbluetoothclassic.utils.resolveBluetoothPromise
 
@@ -31,6 +32,7 @@ class RnSerialBluetoothClassicModule(reactContext: ReactApplicationContext) :
   NativeRnSerialBluetoothClassicSpec(reactContext),
   ActionStateChangedReceiver.BluetoothStateChangeListener,
   DiscoveryReceiver.BluetoothDiscoveryListener,
+  BondStateChangedReceiver.BluetoothBondChangedListener,
   LifecycleEventListener {
 
   override fun getName(): String {
@@ -60,6 +62,7 @@ class RnSerialBluetoothClassicModule(reactContext: ReactApplicationContext) :
    */
   private val bluetoothStateReceiver = ActionStateChangedReceiver(this)
   private val discoveryReceiver = DiscoveryReceiver(this)
+  private val bondReceiver = BondStateChangedReceiver(this)
 
   init {
     registerBluetoothActivityEventListener()
@@ -121,6 +124,38 @@ class RnSerialBluetoothClassicModule(reactContext: ReactApplicationContext) :
     }
   }
 
+  @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+  override fun pairDevice(address: String, promise: Promise) {
+    Log.d("PairDevice", "pairDevice()")
+    val adapter = bluetoothAdapter
+
+    if(adapter == null) {
+      return BluetoothException.ADAPTER_NULL_ERROR.reject(promise)
+    }
+
+    if (!adapter.isEnabled) {
+      return BluetoothException.BLUETOOTH_DISABLED_ERROR.reject(promise)
+    }
+
+
+
+    val filter = IntentFilter(BondStateChangedReceiver.FILTER_ACTION_BOND_STATE_CHANGED)
+    reactApplicationContext.registerReceiver(bondReceiver, filter)
+    Log.d("PairDevice", "bond receiver registered")
+    try {
+      val device: BluetoothDevice = adapter.getRemoteDevice(address)
+
+      if(device.bondState == BluetoothDevice.BOND_BONDED) {
+        onBluetoothBondChanged(null)
+        return
+      }
+
+      device.createBond()
+    } catch (e: Exception) {
+      promise.reject("BLUETOOTH_ERROR", "Error during bond new device device: ${e.message}", e)
+    }
+
+  }
 
   @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
   override fun getBondedDevices(promise: Promise) {
@@ -211,17 +246,62 @@ class RnSerialBluetoothClassicModule(reactContext: ReactApplicationContext) :
   /**
    * Listener --------------------------------------------------------------------------------------
    */
+  @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+  override fun onBluetoothBondChanged(device: BluetoothDevice?) {
+    Log.d("PairDevice", "Bond state changed: device=${device?.address}")
+
+    if(device == null) {
+      reactApplicationContext
+        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+        .emit(EventNames.ON_BONDED_DEVICE, null)
+
+      return
+    }
+    try {
+      val params = Arguments.createMap().apply {
+        putString("name", device.name)
+        putString("address", device.address)
+        putBoolean("isBonded", device.bondState == BluetoothDevice.BOND_BONDED)
+
+        putString("alias", device.let { it ->
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            it.alias
+          } else null
+        })
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+          putInt("addressType", device.addressType)
+        } else {
+          putInt("addressType", -1)
+        }
+
+        device.bluetoothClass.let {
+          val bluetoothClass = Arguments.createMap()
+          bluetoothClass.putInt("majorDeviceClass", it.majorDeviceClass)
+          bluetoothClass.putInt("deviceClass", it.deviceClass)
+          putMap("bluetoothClass", bluetoothClass)
+        }
+        putInt("type", device.type)
+      }
+
+      reactApplicationContext
+        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+        .emit(EventNames.ON_BONDED_DEVICE, params)
+    } catch (e: Exception) {
+      Log.e(NAME, "Failed to emit new devices on event", e)
+    }
+  }
+
   override fun onDiscoveryFinished() {
     val params = Arguments.createMap()
 
     reactApplicationContext.unregisterReceiver(discoveryReceiver)
-
+    Log.d(NAME, "discovery receiver unregistered")
     reactApplicationContext
       .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
       .emit(EventNames.ON_DISCOVERY_FINISHED, params)
   }
   override fun onDiscoveryChanged(device: BluetoothDevice) {
-
     try {
 
       if (ActivityCompat.checkSelfPermission(
