@@ -1,4 +1,4 @@
-package com.rnserialbluetoothclassic.domain
+package com.rnserialbluetoothclassic.event
 
 object EventNames {
   const val BLUETOOTH_STATE_CHANGED = "BluetoothStateChanged"
