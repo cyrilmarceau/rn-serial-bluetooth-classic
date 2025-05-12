@@ -58,6 +58,8 @@ export const BluetoothListeners = {
   ON_DISCOVERY_DEVICE: 'OnDiscoveryDevice',
   ON_DISCOVERY_FINISHED: 'OnDiscoveryFinished',
   ON_BONDED_DEVICE: 'OnBondedDevice',
+  ON_ACTION_ACL_CONNECTED: 'OnActionAclConnected',
+  ON_ACTION_ACL_DISCONNECTED: 'OnActionAclDisconnected',
 } as const;
 
 export type BluetoothListener =
@@ -83,6 +85,8 @@ export interface Spec extends TurboModule {
    * @returns A promise that resolves when the pairing is complete.
    */
   pairDevice(address: string): Promise<void>;
+
+  connect(address: string): Promise<void>;
 }
 
 export default TurboModuleRegistry.getEnforcing<Spec>(

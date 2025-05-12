@@ -1,11 +1,14 @@
 import React from 'react';
 import {
-  Button,
+  SafeAreaView,
+  TouchableOpacity,
   PermissionsAndroid,
   ScrollView,
   StyleSheet,
   Text,
   View,
+  StatusBar,
+  Alert,
 } from 'react-native';
 import {
   enabledBluetooth,
@@ -16,6 +19,7 @@ import {
   type BluetoothDevice,
   startDiscovery,
   pairDevice,
+  connect,
 } from 'rn-serial-bluetooth-classic';
 
 interface BluetoothInfo {
@@ -31,237 +35,359 @@ export default function App() {
     isEnabled: false,
     bondedDevices: [],
   });
+  const [isLoading, setIsLoading] = React.useState(false);
 
   const requestBluetoothPermission = async () => {
-    const granted = await PermissionsAndroid.requestMultiple([
-      PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-      PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-    ]);
+    try {
+      const granted = await PermissionsAndroid.requestMultiple([
+        PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+        PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+      ]);
 
-    return (
-      granted['android.permission.BLUETOOTH_CONNECT'] === 'granted' &&
-      granted['android.permission.BLUETOOTH_SCAN'] === 'granted'
-    );
+      return (
+        granted['android.permission.BLUETOOTH_CONNECT'] === 'granted' &&
+        granted['android.permission.BLUETOOTH_SCAN'] === 'granted'
+      );
+    } catch (error) {
+      console.error('Permission error:', error);
+      return false;
+    }
   };
 
   const requestLocationPermission = async () => {
-    const granted = await PermissionsAndroid.request(
-      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-      {
-        title: 'Location Permission',
-        message: 'Location permission is required to use Bluetooth.',
-        buttonNeutral: 'Ask Me Later',
-        buttonNegative: 'Cancel',
-        buttonPositive: 'OK',
-      }
-    );
+    try {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        {
+          title: 'Permission de localisation',
+          message: 'La localisation est nécessaire pour utiliser le Bluetooth.',
+          buttonNeutral: 'Plus tard',
+          buttonNegative: 'Annuler',
+          buttonPositive: 'OK',
+        }
+      );
 
-    return granted === PermissionsAndroid.RESULTS.GRANTED;
+      return granted === PermissionsAndroid.RESULTS.GRANTED;
+    } catch (error) {
+      console.error('Location permission error:', error);
+      return false;
+    }
   };
 
   const checkBluetoothEnabled = async () => {
     try {
       const isEnabled = await isBluetoothEnabled();
       setBluetoothInfo((prev) => ({
-        ...(prev ?? {}),
+        ...prev,
         isEnabled: isEnabled,
       }));
     } catch (error) {
-      console.error('checkBluetoothEnabled::error::', error);
+      console.error('Bluetooth check error:', error);
     }
   };
 
   const onEnableBluetooth = async () => {
+    setIsLoading(true);
     try {
       const response = await enabledBluetooth();
       setBluetoothInfo((prev) => ({
-        ...(prev ?? {}),
+        ...prev,
         isEnabled: response,
       }));
-      console.log('Enable Bluetooth:', response);
     } catch (error) {
-      console.error('Error enabling Bluetooth:', error);
+      Alert.alert('Erreur', "Impossible d'activer le Bluetooth");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const onGetBondedDevices = async () => {
+    setIsLoading(true);
     try {
       const devices = await getBondedDevices();
       setBluetoothInfo((prev) => ({
-        ...(prev ?? {}),
+        ...prev,
         bondedDevices: devices,
       }));
-      console.log('onGetBondedDevices :: ', devices);
     } catch (error) {
-      console.error('Error getting bonded devices:', error);
+      Alert.alert('Erreur', 'Impossible de récupérer les appareils appairés');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const onStartDiscovery = async () => {
+    setIsLoading(true);
     try {
       await startDiscovery();
-      console.log('Discovery started');
+      setBluetoothInfo((prev) => ({
+        ...prev,
+        discoveryFinished: false,
+        discoveryDevices: [],
+      }));
     } catch (error) {
-      console.error('Error starting discovery:', error);
+      Alert.alert('Erreur', 'Impossible de démarrer la recherche');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const onPairDevice = async (address: string) => {
+    setIsLoading(true);
     try {
       const device = await pairDevice(address);
-      console.log('Device paired:', device);
+      Alert.alert(
+        'Succès',
+        `Appareil appairé: ${device.name || device.address}`
+      );
+      await onGetBondedDevices();
     } catch (error) {
-      console.error('Error pairing device:', error);
+      Alert.alert('Erreur', "Impossible d'appairer l'appareil");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const onConnectDevice = async (address: string) => {
+    setIsLoading(true);
+    try {
+      const device = await connect(address);
+      console.log('Appareil connecté:', device);
+    } catch (error) {
+      Alert.alert('Erreur', "Impossible de se connecter à l'appareil");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   React.useEffect(() => {
-    requestBluetoothPermission();
-    checkBluetoothEnabled();
-    requestLocationPermission();
+    const initialize = async () => {
+      const hasPermissions = await requestBluetoothPermission();
+      const hasLocation = await requestLocationPermission();
 
-    return () => {};
+      if (hasPermissions && hasLocation) {
+        await checkBluetoothEnabled();
+      }
+    };
+
+    initialize();
   }, []);
 
   React.useEffect(() => {
-    const sb = typedBluetoothListener('BluetoothStateChanged', (event) => {
-      console.log('BluetoothStateChanged::event::', event.state);
+    const listeners = [
+      typedBluetoothListener('BluetoothStateChanged', (event) => {
+        setBluetoothInfo((prev) => ({
+          ...prev,
+          isEnabled: event.state === 'STATE_ON',
+          changedState: event.state,
+        }));
+      }),
 
-      setBluetoothInfo(() => ({
-        isEnabled: event.state === 'STATE_ON',
-        changedState: event.state,
-      }));
-    });
+      typedBluetoothListener('OnDiscoveryDevice', (event) => {
+        setBluetoothInfo((prev) => ({
+          ...prev,
+          discoveryDevices: [...(prev.discoveryDevices || []), event],
+        }));
+      }),
 
+      typedBluetoothListener('OnDiscoveryFinished', () => {
+        setBluetoothInfo((prev) => ({
+          ...prev,
+          discoveryFinished: true,
+        }));
+        setIsLoading(false);
+      }),
+    ];
+
+    // Cleanup function qui supprime tous les listeners
     return () => {
-      sb.remove();
+      listeners.forEach((listener) => listener.remove());
     };
   }, []);
 
-  React.useEffect(() => {
-    const sb = typedBluetoothListener('OnDiscoveryDevice', (event) => {
-      console.log('OnDiscoveryDevice::event::', event.address);
-      setBluetoothInfo((prev) => ({
-        ...(prev ?? {}),
-        discoveryDevices: [...(prev?.discoveryDevices ?? []), { ...event }],
-      }));
-    });
-
-    const sbFinished = typedBluetoothListener('OnDiscoveryFinished', () => {
-      setBluetoothInfo((prev) => ({
-        ...(prev ?? {}),
-        discoveryFinished: true,
-      }));
-    });
-
-    const sbPaired = typedBluetoothListener('OnBondedDevice', (device) => {
-      console.log('OnBondedDevice::event::', device);
-      // setBluetoothInfo((prev) => ({
-      //   ...(prev ?? {}),
-      //   discoveryDevices: prev?.discoveryDevices?.filter(
-      //     (device) => device.address !== event.address
-      //   ),
-      //   bondedDevices: [...(prev?.bondedDevices ?? []), { ...event }],
-      // }));
-      // console.log('Bonded devices:', bluetoothInfo.bondedDevices);
-    });
-
-    return () => {
-      sb.remove();
-      sbFinished.remove();
-      sbPaired.remove();
-    };
-  }, []);
+  const renderDevice = (
+    device: BluetoothDevice,
+    onPress: (address: string) => void
+  ) => (
+    <TouchableOpacity
+      key={device.address}
+      style={styles.deviceContainer}
+      onPress={() => onPress(device.address)}
+      disabled={isLoading}
+    >
+      <View>
+        <Text style={styles.deviceName}>
+          {device.name || 'Appareil inconnu'}
+        </Text>
+        <Text style={styles.deviceAddress}>{device.address}</Text>
+      </View>
+    </TouchableOpacity>
+  );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.buttons}>
-        <Button title="Enable Bluetooth" onPress={onEnableBluetooth} />
-        <View style={styles.divider} />
-        <Button title="Get bonded devices" onPress={onGetBondedDevices} />
-        <View style={styles.divider} />
-        <Button title="Start discovery" onPress={onStartDiscovery} />
-      </View>
-      <ScrollView>
-        <View style={styles.divider} />
-        <Text>
-          Has bluetooth enabled: {bluetoothInfo.isEnabled ? 'Yes' : 'No'}
-        </Text>
-        {bluetoothInfo.changedState && (
-          <Text>Last state change: {bluetoothInfo.changedState}</Text>
-        )}
-        <View style={styles.divider} />
-
-        {bluetoothInfo.bondedDevices
-          ? bluetoothInfo.bondedDevices.length > 0 && (
-              <>
-                <Text>Bonded Devices: </Text>
-                {bluetoothInfo.bondedDevices.map((device) => (
-                  <React.Fragment key={device.address}>
-                    <Button
-                      key={device.address}
-                      title={device.name ?? device.address}
-                      onPress={() => {}}
-                    />
-                    <View style={styles.divider} />
-                  </React.Fragment>
-                ))}
-              </>
-            )
-          : null}
-
-        {bluetoothInfo.discoveryDevices &&
-          bluetoothInfo.discoveryDevices.length > 0 && (
-            <>
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  marginBottom: 10,
-                }}
-              >
-                <Text>Discovery Devices: </Text>
-                <Button
-                  title="Clear local devices"
-                  onPress={() => {
-                    setBluetoothInfo((prev) => ({
-                      ...(prev ?? {}),
-                      discoveryDevices: [],
-                    }));
-                  }}
-                />
-              </View>
-              {bluetoothInfo.discoveryDevices.map((device) => (
-                <React.Fragment key={device.address}>
-                  <Button
-                    key={device.address}
-                    title={`Appaired: ${device.name ?? device.address}`}
-                    onPress={() => onPairDevice(device.address)}
-                  />
-                  <View style={styles.divider} />
-                </React.Fragment>
-              ))}
-            </>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" />
+      <ScrollView style={styles.scrollView}>
+        <View style={styles.statusContainer}>
+          <Text style={styles.statusText}>
+            Bluetooth: {bluetoothInfo.isEnabled ? '✅ Activé' : '❌ Désactivé'}
+          </Text>
+          {bluetoothInfo.changedState && (
+            <Text style={styles.statusDetails}>
+              Dernier état: {bluetoothInfo.changedState}
+            </Text>
           )}
+        </View>
 
-        {bluetoothInfo.discoveryFinished && <Text>Discovery finished</Text>}
+        <View style={styles.actionButtons}>
+          <TouchableOpacity
+            style={[styles.button, isLoading && styles.buttonDisabled]}
+            onPress={onEnableBluetooth}
+            disabled={isLoading}
+          >
+            <Text style={styles.buttonText}>
+              {bluetoothInfo.isEnabled
+                ? 'Bluetooth activé'
+                : 'Activer Bluetooth'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, isLoading && styles.buttonDisabled]}
+            onPress={onGetBondedDevices}
+            disabled={isLoading}
+          >
+            <Text style={styles.buttonText}>Appareils appairés</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, isLoading && styles.buttonDisabled]}
+            onPress={onStartDiscovery}
+            disabled={isLoading}
+          >
+            <Text style={styles.buttonText}>Rechercher des appareils</Text>
+          </TouchableOpacity>
+        </View>
+
+        {bluetoothInfo.bondedDevices?.length ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Appareils appairés</Text>
+            {bluetoothInfo.bondedDevices.map((device) =>
+              renderDevice(device, onConnectDevice)
+            )}
+          </View>
+        ) : null}
+
+        {bluetoothInfo.discoveryDevices?.length ? (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Appareils découverts</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setBluetoothInfo((prev) => ({
+                    ...prev,
+                    discoveryDevices: [],
+                  }));
+                }}
+                disabled={isLoading}
+              >
+                <Text style={styles.clearButton}>Effacer</Text>
+              </TouchableOpacity>
+            </View>
+            {bluetoothInfo.discoveryDevices.map((device) =>
+              renderDevice(device, onPairDevice)
+            )}
+          </View>
+        ) : null}
+
+        {bluetoothInfo.discoveryFinished && (
+          <Text style={styles.discoveryStatus}>Recherche terminée</Text>
+        )}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#fff',
+  },
+  scrollView: {
+    flex: 1,
+    padding: 16,
+  },
+  statusContainer: {
+    backgroundColor: '#f5f5f5',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  statusText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  statusDetails: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 4,
+  },
+  actionButtons: {
+    gap: 8,
+    marginBottom: 24,
+  },
+  button: {
+    backgroundColor: '#007AFF',
+    padding: 12,
+    borderRadius: 8,
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  buttons: {
-    width: '100%',
+  buttonDisabled: {
+    opacity: 0.5,
   },
-  divider: {
-    width: '100%',
-    backgroundColor: '#000',
-    marginVertical: 5,
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+  },
+  clearButton: {
+    color: '#007AFF',
+    fontSize: 14,
+  },
+  deviceContainer: {
+    backgroundColor: '#f5f5f5',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  deviceName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  deviceAddress: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+  },
+  discoveryStatus: {
+    textAlign: 'center',
+    color: '#666',
+    marginTop: 8,
   },
 });

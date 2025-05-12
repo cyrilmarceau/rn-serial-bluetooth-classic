@@ -3,15 +3,21 @@ package com.rnserialbluetoothclassic.bluetooth
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothSocket
+import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresPermission
+import androidx.core.app.ActivityCompat
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.rnserialbluetoothclassic.RnSerialBluetoothClassicModule.Companion.NAME
+import com.rnserialbluetoothclassic.connection.ThreadConnection
 import com.rnserialbluetoothclassic.event.BluetoothEventEmitter
 import com.rnserialbluetoothclassic.exception.BluetoothException
+import java.util.UUID
 import kotlin.collections.forEach
+import kotlin.io.outputStream
 
 
 class BluetoothDeviceManager(
@@ -121,4 +127,44 @@ class BluetoothDeviceManager(
       promise.reject("BLUETOOTH_ERROR", "Error getting bonded devices: ${e.message}", e)
     }
   }
+
+
+  @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN])
+  fun connect(address: String, promise: Promise) {
+    Log.d("ConnectDevice", "connectDevice()")
+
+    if (bluetoothAdapter == null) {
+      return BluetoothException.ADAPTER_NULL_ERROR.reject(promise)
+    }
+
+    if (!bluetoothAdapter.isEnabled) {
+      return BluetoothException.BLUETOOTH_DISABLED_ERROR.reject(promise)
+    }
+
+    try {
+      val device: BluetoothDevice = bluetoothAdapter.getRemoteDevice(address)
+      Log.d("SocketThread", "Connecting to device: ${device.address}, name: ${device.name}")
+
+
+      if (bluetoothAdapter.isDiscovering) {
+        bluetoothAdapter.cancelDiscovery()
+      }
+
+      val uuid = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+      val mSocket = device.createRfcommSocketToServiceRecord(uuid)
+
+      val connectionThread = ThreadConnection(
+        socket = mSocket,
+        device = device,
+        eventEmitter = eventEmitter,
+        promise = promise
+      )
+      connectionThread.start()
+
+    } catch (e: Exception) {
+      promise.reject("BLUETOOTH_ERROR", "Error initiating connection: ${e.message}", e)
+    }
+  }
 }
+
+

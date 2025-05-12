@@ -153,14 +153,10 @@ class RnSerialBluetoothClassicModule(reactContext: ReactApplicationContext) :
   override fun onBluetoothStateChanged(state: Int) {
     eventEmitter.emitStateChanged(state)
   }
-
   override fun onActionACLConnected(device: BluetoothDevice?) {
-    Log.d("ACL", "onActionACLConnected()")
     eventEmitter.emitActionACLConnected(device)
   }
-
   override fun onActionACLDisconnected(device: BluetoothDevice?) {
-    Log.d("ACL", "onActionACLDisconnected()")
     eventEmitter.emitActionACLDisconnected(device)
   }
 

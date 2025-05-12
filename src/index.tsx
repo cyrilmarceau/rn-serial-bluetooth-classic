@@ -20,6 +20,8 @@ export type BluetoothEventPayloads = {
    * If the device is already bonded, it will return the device.
    */
   [BluetoothListeners.ON_BONDED_DEVICE]: BluetoothDevice | null;
+  [BluetoothListeners.ON_ACTION_ACL_CONNECTED]: BluetoothDevice | null;
+  [BluetoothListeners.ON_ACTION_ACL_DISCONNECTED]: BluetoothDevice | null;
 };
 
 export const bluetoothListener = new NativeEventEmitter(
@@ -55,4 +57,8 @@ export async function startDiscovery(): Promise<void> {
 
 export async function pairDevice(address: string): Promise<void> {
   return await RnSerialBluetoothClassic.pairDevice(address);
+}
+
+export async function connect(address: string): Promise<void> {
+  return await RnSerialBluetoothClassic.connect(address);
 }
