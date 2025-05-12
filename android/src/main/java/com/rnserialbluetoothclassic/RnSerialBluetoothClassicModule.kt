@@ -70,25 +70,29 @@ class RnSerialBluetoothClassicModule(reactContext: ReactApplicationContext) :
       reactApplicationContext.registerReceiver(
         actionACLReceiver,
         ActionACLReceiver.getIntentFilter(),
-        Context.RECEIVER_NOT_EXPORTED
+        Context.RECEIVER_EXPORTED
       )
     } else {
       ContextCompat.registerReceiver(
         reactApplicationContext,
         actionACLReceiver,
         ActionACLReceiver.getIntentFilter(),
-        ContextCompat.RECEIVER_NOT_EXPORTED
+        ContextCompat.RECEIVER_EXPORTED
       )
     }
 
   }
   override fun onHostPause() {}
   override fun onHostDestroy() {
-    adapterManager.cleanup()
-    reactApplicationContext.unregisterReceiver(bluetoothStateReceiver)
-    reactApplicationContext.unregisterReceiver(discoveryReceiver)
-    reactApplicationContext.unregisterReceiver(bondReceiver)
-    reactApplicationContext.unregisterReceiver(actionACLReceiver)
+    try {
+      adapterManager.cleanup()
+      reactApplicationContext.unregisterReceiver(bluetoothStateReceiver)
+      reactApplicationContext.unregisterReceiver(discoveryReceiver)
+      reactApplicationContext.unregisterReceiver(bondReceiver)
+      reactApplicationContext.unregisterReceiver(actionACLReceiver)
+    } catch (e: IllegalArgumentException) {
+      Log.d(NAME, "Fail to unregister receiver $e")
+    }
   }
 
   // Example method
@@ -154,6 +158,7 @@ class RnSerialBluetoothClassicModule(reactContext: ReactApplicationContext) :
     eventEmitter.emitStateChanged(state)
   }
   override fun onActionACLConnected(device: BluetoothDevice?) {
+    Log.d("onActionACLConnected", "$device")
     eventEmitter.emitActionACLConnected(device)
   }
   override fun onActionACLDisconnected(device: BluetoothDevice?) {
@@ -166,18 +171,23 @@ class RnSerialBluetoothClassicModule(reactContext: ReactApplicationContext) :
 
 
   override fun addListener(eventName: String?) {
-//    if (listenerCount == 0) {
-//      reactApplicationContext.unregisterReceiver(bluetoothStateReceiver)
-//    }
-//
-//    listenerCount += 1
+    if (listenerCount == 0) {
+//      reactApplicationContext.registerReceiver(bluetoothStateReceiver)
+    }
+
+    listenerCount += 1
   }
   override fun removeListeners(count: Double) {
-//    listenerCount -= 1
-//    reactApplicationContext.unregisterReceiver(bluetoothStateReceiver)
-//    reactApplicationContext.unregisterReceiver(discoveryReceiver)
-//    reactApplicationContext.unregisterReceiver(bondReceiver)
-//    reactApplicationContext.unregisterReceiver(actionACLReceiver)
+    listenerCount -= 1
+
+    try {
+      reactApplicationContext.unregisterReceiver(bluetoothStateReceiver)
+      reactApplicationContext.unregisterReceiver(discoveryReceiver)
+      reactApplicationContext.unregisterReceiver(bondReceiver)
+      reactApplicationContext.unregisterReceiver(actionACLReceiver)
+    } catch (e: IllegalArgumentException) {
+      Log.d(NAME, "Fail to unregister receiver $e")
+    }
   }
 
 

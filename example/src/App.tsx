@@ -28,6 +28,7 @@ interface BluetoothInfo {
   bondedDevices?: BluetoothDevice[];
   discoveryDevices?: BluetoothDevice[];
   discoveryFinished?: boolean;
+  connectedDevice?: BluetoothDevice | null;
 }
 
 export default function App() {
@@ -197,9 +198,23 @@ export default function App() {
         }));
         setIsLoading(false);
       }),
+
+      typedBluetoothListener('OnActionAclConnected', (event) => {
+        console.log('Appareil connecté:', event);
+        setBluetoothInfo((prev) => ({
+          ...prev,
+          connectedDevice: event,
+        }));
+      }),
+      typedBluetoothListener('OnActionAclDisconnected', (event) => {
+        console.log('Appareil déconnecté:', event);
+        setBluetoothInfo((prev) => ({
+          ...prev,
+          connectedDevice: null,
+        }));
+      }),
     ];
 
-    // Cleanup function qui supprime tous les listeners
     return () => {
       listeners.forEach((listener) => listener.remove());
     };
@@ -267,6 +282,29 @@ export default function App() {
           >
             <Text style={styles.buttonText}>Rechercher des appareils</Text>
           </TouchableOpacity>
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Appareil connecté</Text>
+          </View>
+          <View style={[styles.deviceContainer, styles.connectedDevice]}>
+            <View>
+              <Text style={styles.deviceName}>
+                {bluetoothInfo.connectedDevice?.name || 'Appareil inconnu'}
+              </Text>
+              <Text style={styles.deviceAddress}>
+                {bluetoothInfo.connectedDevice?.address}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => {}}
+              disabled={isLoading}
+              style={styles.disconnectButton}
+            >
+              <Text style={styles.disconnectButtonText}>Déconnecter</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {bluetoothInfo.bondedDevices?.length ? (
@@ -389,5 +427,21 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#666',
     marginTop: 8,
+  },
+  connectedDevice: {
+    backgroundColor: '#e8f5e9',
+    borderWidth: 1,
+    borderColor: '#4caf50',
+  },
+  disconnectButton: {
+    backgroundColor: '#f44336',
+    padding: 8,
+    borderRadius: 4,
+    marginTop: 8,
+  },
+  disconnectButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

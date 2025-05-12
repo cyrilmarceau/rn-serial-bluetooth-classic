@@ -134,6 +134,7 @@ class BluetoothEventEmitter(private val reactContext: ReactApplicationContext) {
   }
 
   fun emitActionACLConnected(device: BluetoothDevice?) {
+    Log.d("Debug", "${device?.toWritableMap()}")
     reactContext
       .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
       .emit(EventNames.ON_ACTION_ACL_CONNECTED, device?.toWritableMap())
