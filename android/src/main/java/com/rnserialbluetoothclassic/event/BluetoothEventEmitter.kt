@@ -11,6 +11,7 @@ import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.rnserialbluetoothclassic.RnSerialBluetoothClassicModule.Companion.NAME
+import com.rnserialbluetoothclassic.extension.toWritableMap
 
 class BluetoothEventEmitter(private val reactContext: ReactApplicationContext) {
   fun emitDiscoveryChanged(device: BluetoothDevice) {
@@ -24,8 +25,6 @@ class BluetoothEventEmitter(private val reactContext: ReactApplicationContext) {
       }
 
       val params = Arguments.createMap().apply {
-
-
         putString("name", device.name)
         putString("address", device.address)
         putBoolean("isBonded", device.bondState == BluetoothDevice.BOND_BONDED)
@@ -132,6 +131,17 @@ class BluetoothEventEmitter(private val reactContext: ReactApplicationContext) {
     } catch (e: Exception) {
       Log.e(NAME, "Failed to emit new devices on event", e)
     }
+  }
+
+  fun emitActionACLConnected(device: BluetoothDevice?) {
+    reactContext
+      .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+      .emit(EventNames.ON_ACTION_ACL_CONNECTED, device?.toWritableMap())
+  }
+  fun emitActionACLDisconnected(device: BluetoothDevice?) {
+    reactContext
+      .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+      .emit(EventNames.ON_ACTION_ACL_DISCONNECTED, device?.toWritableMap())
   }
 
 }

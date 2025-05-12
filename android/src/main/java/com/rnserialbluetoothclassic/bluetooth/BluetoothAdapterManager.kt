@@ -92,8 +92,4 @@ class BluetoothAdapterManager(private val context: ReactApplicationContext) {
   fun cleanup(){
     bluetoothPromise = null
   }
-
-
-
-
 }
