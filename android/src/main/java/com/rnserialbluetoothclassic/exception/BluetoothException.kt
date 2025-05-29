@@ -16,8 +16,8 @@ object BluetoothException {
         val message: String
     ) {
 
-        fun reject(promise: Promise) {
-            promise.reject(code, message)
+        fun reject(promise: Promise, customMessage: String? = null) {
+            promise.reject(code, customMessage ?: message)
         }
     }
 
@@ -37,6 +37,11 @@ object BluetoothException {
     )
 
     val DEVICE_WRITE_ERROR = BluetoothError(
+        DEVICE_WRITE,
+        "Failed to write data"
+    )
+
+    val DEVICE_WRITE_BAD_HEXA_ERROR = BluetoothError(
         DEVICE_WRITE,
         "Failed to write data"
     )

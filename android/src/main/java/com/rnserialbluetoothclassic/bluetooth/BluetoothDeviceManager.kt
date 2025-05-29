@@ -151,7 +151,16 @@ class BluetoothDeviceManager(
                 BluetoothException.DEVICE_WRITE_ERROR.reject(promise)
             }
         } catch (e: Exception) {
-            BluetoothException.DEVICE_WRITE_ERROR.reject(promise)
+            when (e) {
+                is NumberFormatException -> BluetoothException.DEVICE_WRITE_ERROR.reject(
+                    promise,
+                    e.message
+                )
+
+                else -> BluetoothException.DEVICE_WRITE_ERROR.reject(promise)
+            }
+
+
         }
 
     }
@@ -234,7 +243,7 @@ class BluetoothDeviceManager(
         try {
             val connected = bluetoothSocket?.isConnected == true && activeConnection != null
             promise.resolve(connected)
-        } catch (e: Exception) {
+        } catch (e: NumberFormatException) {
             BluetoothException.DEVICE_CONNECTION_CHECK_ERROR.reject(promise)
         }
     }

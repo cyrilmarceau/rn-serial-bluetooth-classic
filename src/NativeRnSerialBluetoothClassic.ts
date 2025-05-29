@@ -3,7 +3,9 @@ import { TurboModuleRegistry } from 'react-native';
 
 export type DeviceConnectOptions = {
   /**
-   * If no delimiter was set all chunks will be emit
+   * If no delimiter was set the default value is set
+   * If you don't want delimiter pass explicitly empty string for received all chunks
+   * @default "\n"
    */
   delimiter: string | null;
 
@@ -66,23 +68,9 @@ export interface BluetoothDevice {
   type: number;
 }
 
-export const BluetoothListeners = {
-  BLUETOOTH_STATE_CHANGED: 'BluetoothStateChanged',
-  ON_DISCOVERY_DEVICE: 'OnDiscoveryDevice',
-  ON_DISCOVERY_FINISHED: 'OnDiscoveryFinished',
-  ON_BONDED_DEVICE: 'OnBondedDevice',
-  ON_ACTION_ACL_CONNECTED: 'OnActionAclConnected',
-  ON_ACTION_ACL_DISCONNECTED: 'OnActionAclDisconnected',
-  ON_DATA_RECEIVED: 'OnDataReceived',
-} as const;
-
-export type BluetoothListener =
-  (typeof BluetoothListeners)[keyof typeof BluetoothListeners];
-
 export interface Spec extends TurboModule {
-  multiply(a: number, b: number): number;
-
   isBluetoothEnabled(): Promise<boolean>;
+
   enabledBluetooth(): Promise<boolean>;
 
   addListener(eventName: string): void;
@@ -100,18 +88,27 @@ export interface Spec extends TurboModule {
    */
   pairDevice(address: string): Promise<void>;
 
+  /**
+   * Connect device from his address
+   * Pass an object in options
+   */
   connect(address: string, options: DeviceConnectOptions): Promise<void>;
 
   /**
    * Disconnect connected device
    */
-  disconnect(): Promise<void>;
+  disconnect(): Promise<boolean>;
 
   /**
    * Check if device is currently connected
    */
   isConnected(): Promise<boolean>;
 
+  /**
+   * Send data to connected device
+   * If data is not on hexadecimal format it return an exception
+   * @param data
+   */
   write(data: string): Promise<boolean>;
 }
 

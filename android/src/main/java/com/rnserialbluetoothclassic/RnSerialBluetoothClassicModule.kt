@@ -60,9 +60,6 @@ class RnSerialBluetoothClassicModule(reactContext: ReactApplicationContext) :
     init {
         adapterManager.registerBluetoothActivityEventListener()
         reactApplicationContext.addLifecycleEventListener(this)
-    }
-
-    override fun onHostResume() {
         reactApplicationContext.registerReceiver(
             bluetoothStateReceiver,
             IntentFilter(ActionStateChangedReceiver.FILTER_ACTION)
@@ -81,7 +78,9 @@ class RnSerialBluetoothClassicModule(reactContext: ReactApplicationContext) :
                 ContextCompat.RECEIVER_EXPORTED
             )
         }
+    }
 
+    override fun onHostResume() {
     }
 
     override fun onHostPause() {}
@@ -96,13 +95,7 @@ class RnSerialBluetoothClassicModule(reactContext: ReactApplicationContext) :
             Log.d(NAME, "Fail to unregister receiver $e")
         }
     }
-
-    // Example method
-    // See https://reactnative.dev/docs/native-modules-android
-    override fun multiply(a: Double, b: Double): Double {
-        return a * b
-    }
-
+    
     override fun isBluetoothEnabled(promise: Promise) {
         return adapterManager.isBluetoothEnabled(promise)
     }
