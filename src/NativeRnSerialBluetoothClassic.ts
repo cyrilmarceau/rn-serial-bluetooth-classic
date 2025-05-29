@@ -1,6 +1,19 @@
 import type { TurboModule } from 'react-native';
 import { TurboModuleRegistry } from 'react-native';
 
+export type DeviceConnectOptions = {
+  /**
+   * If no delimiter was set all chunks will be emit
+   */
+  delimiter: string | null;
+
+  /**
+   * Delimit the size of buffer
+   * @default 1024
+   */
+  bufferLength: number;
+};
+
 export interface BluetoothDevice {
   /**
    * Get the friendly Bluetooth name of the remote device.
@@ -60,6 +73,7 @@ export const BluetoothListeners = {
   ON_BONDED_DEVICE: 'OnBondedDevice',
   ON_ACTION_ACL_CONNECTED: 'OnActionAclConnected',
   ON_ACTION_ACL_DISCONNECTED: 'OnActionAclDisconnected',
+  ON_DATA_RECEIVED: 'OnDataReceived',
 } as const;
 
 export type BluetoothListener =
@@ -86,7 +100,19 @@ export interface Spec extends TurboModule {
    */
   pairDevice(address: string): Promise<void>;
 
-  connect(address: string): Promise<void>;
+  connect(address: string, options: DeviceConnectOptions): Promise<void>;
+
+  /**
+   * Disconnect connected device
+   */
+  disconnect(): Promise<void>;
+
+  /**
+   * Check if device is currently connected
+   */
+  isConnected(): Promise<boolean>;
+
+  write(data: string): Promise<boolean>;
 }
 
 export default TurboModuleRegistry.getEnforcing<Spec>(

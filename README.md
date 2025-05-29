@@ -33,18 +33,17 @@ An example implementation can be found in the `example/App.tsx` file:
 | Implement state changed listener      |    ✅    |  ❌  |
 | Discover device incrementally         |    ✅    |  ❌  |
 | Listener when discover end            |    ✅    |  ❌  |
-| Listener when discover end            |    ✅    |  ❌  |
+| Add Bluetooth device pairing          |    ✅    |  ❌  |
+| Implement Bluetooth device connection |    ✅    |  ❌  |
+| Add Bluetooth device disconnection    |    ✅    |  ❌  |
+| Implement Bluetooth data transfer     |    ✅    |  ❌  |
+| Add Bluetooth data reception          |    ✅    |  ❌  |
 
 ---
 
 ## 🛠️ Roadmap
 
 * Add iOS support
-* Add Bluetooth device pairing
-* Implement Bluetooth device connection
-* Add Bluetooth device disconnection
-* Implement Bluetooth data transfer
-* Add Bluetooth data reception
 * Implement Bluetooth data parsing
 * Add Bluetooth data encoding
 * Add unit tests and complete documentation

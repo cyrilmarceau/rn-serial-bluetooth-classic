@@ -9,17 +9,21 @@ import {
   View,
   StatusBar,
   Alert,
+  TextInput,
 } from 'react-native';
 import {
   enabledBluetooth,
   getBondedDevices,
   isBluetoothEnabled,
   typedBluetoothListener,
+  isConnected,
   type BluetoothStateChanged,
   type BluetoothDevice,
   startDiscovery,
   pairDevice,
   connect,
+  disconnect,
+  write,
 } from 'rn-serial-bluetooth-classic';
 
 interface BluetoothInfo {
@@ -29,14 +33,15 @@ interface BluetoothInfo {
   discoveryDevices?: BluetoothDevice[];
   discoveryFinished?: boolean;
   connectedDevice?: BluetoothDevice | null;
+  isConnected: boolean;
 }
 
 export default function App() {
   const [bluetoothInfo, setBluetoothInfo] = React.useState<BluetoothInfo>({
     isEnabled: false,
     bondedDevices: [],
+    isConnected: false,
   });
-  const [isLoading, setIsLoading] = React.useState(false);
 
   const requestBluetoothPermission = async () => {
     try {
@@ -88,7 +93,6 @@ export default function App() {
   };
 
   const onEnableBluetooth = async () => {
-    setIsLoading(true);
     try {
       const response = await enabledBluetooth();
       setBluetoothInfo((prev) => ({
@@ -98,12 +102,10 @@ export default function App() {
     } catch (error) {
       Alert.alert('Erreur', "Impossible d'activer le Bluetooth");
     } finally {
-      setIsLoading(false);
     }
   };
 
   const onGetBondedDevices = async () => {
-    setIsLoading(true);
     try {
       const devices = await getBondedDevices();
       setBluetoothInfo((prev) => ({
@@ -113,12 +115,10 @@ export default function App() {
     } catch (error) {
       Alert.alert('Erreur', 'Impossible de récupérer les appareils appairés');
     } finally {
-      setIsLoading(false);
     }
   };
 
   const onStartDiscovery = async () => {
-    setIsLoading(true);
     try {
       await startDiscovery();
       setBluetoothInfo((prev) => ({
@@ -129,35 +129,60 @@ export default function App() {
     } catch (error) {
       Alert.alert('Erreur', 'Impossible de démarrer la recherche');
     } finally {
-      setIsLoading(false);
     }
   };
 
   const onPairDevice = async (address: string) => {
-    setIsLoading(true);
     try {
       const device = await pairDevice(address);
-      Alert.alert(
-        'Succès',
-        `Appareil appairé: ${device.name || device.address}`
-      );
+      Alert.alert('Succès', `Appareil appairé: ${device}`);
       await onGetBondedDevices();
     } catch (error) {
       Alert.alert('Erreur', "Impossible d'appairer l'appareil");
     } finally {
-      setIsLoading(false);
     }
   };
 
   const onConnectDevice = async (address: string) => {
-    setIsLoading(true);
     try {
-      const device = await connect(address);
+      const device = await connect(address, {
+        delimiter: '4352',
+        bufferLength: 1024,
+      });
       console.log('Appareil connecté:', device);
     } catch (error) {
       Alert.alert('Erreur', "Impossible de se connecter à l'appareil");
     } finally {
-      setIsLoading(false);
+    }
+  };
+
+  const onDisconnectDevice = async () => {
+    try {
+      await disconnect();
+    } catch (error) {
+      Alert.alert('Erreur', "Impossible de se déconnecter de l'appareil");
+    } finally {
+    }
+  };
+
+  const checkConnectedDevice = async () => {
+    try {
+      const payload = await isConnected();
+      setBluetoothInfo((prev) => ({
+        ...prev,
+        isConnected: payload,
+      }));
+    } catch (error) {
+      console.log('An error occured');
+    }
+  };
+
+  const onWriteData = async (data: string) => {
+    try {
+      const isSend = await write(data);
+      console.log('isSend', isSend);
+    } catch (error) {
+      console.log('An error occured during send data', error);
     }
   };
 
@@ -165,12 +190,10 @@ export default function App() {
     const initialize = async () => {
       const hasPermissions = await requestBluetoothPermission();
       const hasLocation = await requestLocationPermission();
-
       if (hasPermissions && hasLocation) {
         await checkBluetoothEnabled();
       }
     };
-
     initialize();
   }, []);
 
@@ -196,7 +219,6 @@ export default function App() {
           ...prev,
           discoveryFinished: true,
         }));
-        setIsLoading(false);
       }),
 
       typedBluetoothListener('OnActionAclConnected', (event) => {
@@ -213,6 +235,9 @@ export default function App() {
           connectedDevice: null,
         }));
       }),
+      typedBluetoothListener('OnDataReceived', (event) => {
+        console.log('Received data', event);
+      }),
     ];
 
     return () => {
@@ -228,7 +253,6 @@ export default function App() {
       key={device.address}
       style={styles.deviceContainer}
       onPress={() => onPress(device.address)}
-      disabled={isLoading}
     >
       <View>
         <Text style={styles.deviceName}>
@@ -255,11 +279,7 @@ export default function App() {
         </View>
 
         <View style={styles.actionButtons}>
-          <TouchableOpacity
-            style={[styles.button, isLoading && styles.buttonDisabled]}
-            onPress={onEnableBluetooth}
-            disabled={isLoading}
-          >
+          <TouchableOpacity style={[styles.button]} onPress={onEnableBluetooth}>
             <Text style={styles.buttonText}>
               {bluetoothInfo.isEnabled
                 ? 'Bluetooth activé'
@@ -268,23 +288,47 @@ export default function App() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.button, isLoading && styles.buttonDisabled]}
+            style={[styles.button]}
             onPress={onGetBondedDevices}
-            disabled={isLoading}
           >
             <Text style={styles.buttonText}>Appareils appairés</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.button, isLoading && styles.buttonDisabled]}
-            onPress={onStartDiscovery}
-            disabled={isLoading}
-          >
+          <TouchableOpacity style={[styles.button]} onPress={onStartDiscovery}>
             <Text style={styles.buttonText}>Rechercher des appareils</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button]}
+            onPress={checkConnectedDevice}
+          >
+            <Text style={styles.buttonText}>Vérifier connexion</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.button]}
+            onPress={() => onWriteData('')}
+          >
+            <Text style={styles.buttonText}>ON</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.button]}
+            onPress={() => onWriteData('')}
+          >
+            <Text style={styles.buttonText}>OFF</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Vérification manuel</Text>
+            <Text style={styles.sectionTitle}>
+              {bluetoothInfo.isConnected ? '✅ Oui' : '❌ Non'}
+            </Text>
+          </View>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Trame</Text>
+            <TextInput value="cz" />
+          </View>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Appareil connecté</Text>
           </View>
@@ -298,8 +342,7 @@ export default function App() {
               </Text>
             </View>
             <TouchableOpacity
-              onPress={() => {}}
-              disabled={isLoading}
+              onPress={onDisconnectDevice}
               style={styles.disconnectButton}
             >
               <Text style={styles.disconnectButtonText}>Déconnecter</Text>
@@ -327,7 +370,6 @@ export default function App() {
                     discoveryDevices: [],
                   }));
                 }}
-                disabled={isLoading}
               >
                 <Text style={styles.clearButton}>Effacer</Text>
               </TouchableOpacity>
